@@ -1,10 +1,10 @@
 module noter
 
-go 1.19
+go 1.18
 
 require (
 	github.com/spf13/viper v1.13.0
-	go.uber.org/zap v1.17.0
+	go.uber.org/zap v1.24.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/telebot.v3 v3.1.2
 	gorm.io/driver/sqlite v1.3.2

@@ -6,6 +6,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"noter/utils/config"
+	"os"
 	"time"
 )
 
@@ -28,7 +29,7 @@ func getEncoder() zapcore.Encoder {
 }
 
 func getLogWriter() zapcore.WriteSyncer {
-	logPath := fmt.Sprintf("%s%s%s", config.AppPath, config.SystemC.RuntimePath, "/log")
+	logPath := fmt.Sprintf("%s%s%s%s", config.AppPath, config.SystemC.RuntimePath, string(os.PathSeparator), "log")
 	fmt.Println("logPath:" + logPath)
 	file := fmt.Sprintf("%s/log_%s.log",
 		logPath,

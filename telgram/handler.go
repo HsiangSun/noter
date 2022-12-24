@@ -35,8 +35,20 @@ func OnTextMessage(c tb.Context) error {
 		return SetInRate(c)
 	}
 
+	if strings.HasPrefix(msg, "设置币种") {
+		return SetCurrency(c)
+	}
+
 	if strings.HasPrefix(msg, "设置出款汇率") {
 		return SetOutRate(c)
+	}
+
+	if strings.HasPrefix(msg, "设置入款费率") {
+		return SetInFree(c)
+	}
+
+	if strings.HasPrefix(msg, "设置出款费率") {
+		return SetOutFree(c)
 	}
 
 	if strings.Contains(msg, "+") {

@@ -9,12 +9,13 @@ import (
 	"noter/utils/config"
 	"noter/utils/helper"
 	"noter/utils/log"
+	"os"
 )
 
 var Gdb *gorm.DB
 
 func InitDb() {
-	sqlPath := fmt.Sprintf("%s%s", config.AppPath, "/db/note.db")
+	sqlPath := fmt.Sprintf("%s%s%s%s%s", config.AppPath, string(os.PathSeparator), "db", string(os.PathSeparator), "note.db")
 	log.Sugar.Infof("SqlPath:%s", sqlPath)
 	db, err := gorm.Open(sqlite.Open(sqlPath), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
@@ -22,7 +23,7 @@ func InitDb() {
 	if err != nil {
 		log.Sugar.Errorf("open database err:%s", err)
 	}
-	err = db.AutoMigrate(model.Admin{}, model.Balance{}, model.Bill{}, model.Rate{})
+	err = db.AutoMigrate(model.Admin{}, model.Balance{}, model.Bill{}, model.Rate{}, model.Free{})
 	if err != nil {
 		log.Sugar.Errorf("orm auto migrate have error:%s", err)
 	}

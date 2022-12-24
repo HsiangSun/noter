@@ -30,6 +30,17 @@ func TestNumberFromString(t *testing.T) {
 	fmt.Println(num)
 }
 
+func TestRecord(t *testing.T) {
+
+	str := "abc+100"
+
+	regex := `(.*)?\s*(\+|\-)\s*(\d+.\d+)`
+	mustCompile := regexp.MustCompile(regex)
+	matchs := mustCompile.FindStringSubmatch(str)
+
+	fmt.Println(matchs)
+}
+
 func TestOrderAndAmount(t *testing.T) {
 	str := `20221217173105_172_1927_OC +   1200.00`
 	order, a, err := helper.GetOrderAndAmount(str)
@@ -38,4 +49,38 @@ func TestOrderAndAmount(t *testing.T) {
 	}
 	fmt.Println(order)
 	fmt.Println(a)
+}
+
+func TestCurrency(t *testing.T) {
+	reg := `[A-Z]+`
+	regex := regexp.MustCompile(reg)
+
+	findString := regex.FindString("设置币种为USDT")
+
+	fmt.Println(findString)
+
+}
+
+func TestTableSysbal(t *testing.T) {
+
+	//| Symbol | Price | Change |
+	//|--------|-------|--------|
+	//| ABC    | 20.85 |  1.626 |
+	//| DEF    | 78.95 |  0.099 |
+	//| GHI    | 23.45 |  0.192 |
+	//| JKL    | 98.85 |  0.292 |
+
+	str1 := `` + "`" + "`" + "`" + ``
+
+	center := `| Symbol2 | Price2 | Change |
+	|--------|-------|--------|
+	| ABC    | 20.85 |  1.626 |
+	| DEF    | 78.95 |  0.099 |
+	| GHI    | 23.45 |  0.192 |
+	| JKL    | 98.85 |  0.292 |`
+
+	str2 := `` + "`" + "`" + "`" + ``
+
+	fmt.Println(str1 + center + str2)
+
 }

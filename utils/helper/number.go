@@ -18,7 +18,7 @@ func GetNumberFromString(str string) float64 {
 }
 
 func GetOrderAndAmount(str string) (order string, amount float64, err error) {
-	regex := `^(\w+)\s*(\-|\+)+\s*([0-9]+.?[0-9+]+)$`
+	regex := `(.*)?\s*(\+|\-)\s*(\d+.\d+)`
 	mustCompile := regexp.MustCompile(regex)
 	matchs := mustCompile.FindStringSubmatch(str)
 
@@ -26,10 +26,17 @@ func GetOrderAndAmount(str string) (order string, amount float64, err error) {
 	//	fmt.Printf("%d ==> %s \n", i, i2)
 	//}
 
-	order = matchs[1]
-	amount, err = strconv.ParseFloat(matchs[3], 64)
+	if len(matchs) == 4 {
+		order = matchs[1]
+
+	} else {
+		order = ""
+	}
+
+	amount, err = strconv.ParseFloat(matchs[len(matchs)-1], 64)
 	if err != nil {
 		return
 	}
+
 	return
 }
