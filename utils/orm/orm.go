@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 	"noter/model"
 	"noter/utils/config"
 	"noter/utils/helper"
@@ -18,7 +17,7 @@ func InitDb() {
 	sqlPath := fmt.Sprintf("%s%s%s%s%s", config.AppPath, string(os.PathSeparator), "db", string(os.PathSeparator), "note.db")
 	log.Sugar.Infof("SqlPath:%s", sqlPath)
 	db, err := gorm.Open(sqlite.Open(sqlPath), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		//Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
 		log.Sugar.Errorf("open database err:%s", err)
