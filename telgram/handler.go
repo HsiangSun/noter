@@ -7,28 +7,24 @@ import (
 )
 
 var (
-	BINDING    = "绑定"
 	START_NOTE = "记账"
 	END_NOTE   = "清账"
+	HELP       = "帮助"
 )
 
 func OnTextMessage(c tb.Context) error {
 	msg := c.Text()
 
-	if msg == BINDING {
-		return Binding(c)
-	}
-
 	if msg == START_NOTE {
 		return StartNote(c)
 	}
 
-	if strings.HasPrefix(msg, "入款") {
-		return PayIn(c)
+	if msg == HELP {
+		return Help(c)
 	}
 
-	if strings.HasPrefix(msg, "出款") {
-		return PayOut(c)
+	if msg == END_NOTE {
+		return clean(c)
 	}
 
 	if strings.HasPrefix(msg, "设置入款汇率") {
@@ -37,6 +33,10 @@ func OnTextMessage(c tb.Context) error {
 
 	if strings.HasPrefix(msg, "设置币种") {
 		return SetCurrency(c)
+	}
+
+	if strings.HasPrefix(msg, "授权") {
+		return SetAdmin(c)
 	}
 
 	if strings.HasPrefix(msg, "设置出款汇率") {

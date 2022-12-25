@@ -19,9 +19,14 @@ type System struct {
 	RuntimePath string `mapstructure:"runtime_path"`
 }
 
+type Boot struct {
+	Token string `token:"token"`
+}
+
 var SystemC System
 
 var LogC Log
+var BootC Boot
 
 func InitConfig() {
 	path, err := os.Getwd()
@@ -36,6 +41,10 @@ func InitConfig() {
 		log.Fatal("load config file err:", err)
 	}
 	err = viper.UnmarshalKey("log", &LogC)
+	if err != nil {
+		log.Fatal("load config log err:", err)
+	}
+	err = viper.UnmarshalKey("boot", &BootC)
 	if err != nil {
 		log.Fatal("load config log err:", err)
 	}

@@ -4,23 +4,25 @@ import (
 	"fmt"
 	"noter/utils/helper"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
 
 func TestRate(t *testing.T) {
-	msg := "设置入款汇率22.33 45.12"
-
-	contains := strings.Contains(msg, "置入款汇率")
-	if contains {
-		fmt.Println("可以设置汇率")
-	}
-
-	regex := `[0-9]+.[0-9]+`
+	msg := "设置出款汇率5"
+	regex := `[0-9]+\.?[0-9]*`
 	mustCompile := regexp.MustCompile(regex)
 	rates := mustCompile.FindString(msg)
 
 	fmt.Println(rates)
+
+	floatRate, err := strconv.ParseFloat(rates, 32)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Printf("RES= %.2f", floatRate)
 
 }
 
@@ -30,11 +32,22 @@ func TestNumberFromString(t *testing.T) {
 	fmt.Println(num)
 }
 
+func TestUsername(t *testing.T) {
+	txt := "授权 @Idontseemoon"
+
+	split := strings.Split(txt, "@")
+
+	fmt.Println(len(split))
+
+	fmt.Println(split[1])
+
+}
+
 func TestRecord(t *testing.T) {
 
-	str := "abc+100"
+	str := "abc121 + 100.12"
 
-	regex := `(.*)?\s*(\+|\-)\s*(\d+.\d+)`
+	regex := `(.*)(\+|\-)\s?([0-9]+\.?[0-9]*)`
 	mustCompile := regexp.MustCompile(regex)
 	matchs := mustCompile.FindStringSubmatch(str)
 

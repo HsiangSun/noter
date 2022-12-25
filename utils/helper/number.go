@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"errors"
 	"regexp"
 	"strconv"
 )
@@ -18,13 +19,18 @@ func GetNumberFromString(str string) float64 {
 }
 
 func GetOrderAndAmount(str string) (order string, amount float64, err error) {
-	regex := `(.*)?\s*(\+|\-)\s*(\d+.\d+)`
+	//regex := `(.*)?\s*(\+|\-)\s*(\d+.\d+)`
+	regex := `(.*)(\+|\-)\s?([0-9]+\.?[0-9]*)`
 	mustCompile := regexp.MustCompile(regex)
 	matchs := mustCompile.FindStringSubmatch(str)
 
 	//for i, i2 := range matchs {
 	//	fmt.Printf("%d ==> %s \n", i, i2)
 	//}
+
+	if len(matchs) == 0 {
+		return "", 0, errors.New("无法匹配")
+	}
 
 	if len(matchs) == 4 {
 		order = matchs[1]

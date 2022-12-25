@@ -23,7 +23,7 @@ func InitDb() {
 	if err != nil {
 		log.Sugar.Errorf("open database err:%s", err)
 	}
-	err = db.AutoMigrate(model.Admin{}, model.Balance{}, model.Bill{}, model.Rate{}, model.Free{})
+	err = db.AutoMigrate(model.Admin{}, model.Bill{}, model.Rate{}, model.Free{}, model.Currency{})
 	if err != nil {
 		log.Sugar.Errorf("orm auto migrate have error:%s", err)
 	}
@@ -52,6 +52,7 @@ func LoadToMemory() {
 		var uid string
 		rows.Scan(&gid, &uid)
 		helper.AddNorer(gid, uid)
+		log.Sugar.Debugf("Load username:%s to group:%s", uid, gid)
 	}
 
 	log.Sugar.Infof("Load all db to memory")

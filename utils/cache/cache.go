@@ -17,8 +17,8 @@ func GetCurrency(c tb.Context) string {
 
 	res, ok := helper.NoterMap.Load(fmt.Sprintf("%s", today))
 	if !ok {
-		var admin model.Admin
-		err := orm.Gdb.Model(&model.Admin{}).Find(&admin, "gid = ?", fmt.Sprintf("%d", c.Chat().ID)).Error
+		var admin model.Currency
+		err := orm.Gdb.Model(&model.Currency{}).Find(&admin, "gid = ?", fmt.Sprintf("%d", c.Chat().ID)).Error
 		if err != nil {
 			log.Sugar.Errorf("get rate have error:%s", err.Error())
 			return ""

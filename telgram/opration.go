@@ -12,29 +12,16 @@ import (
 	"noter/utils/orm"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
 // 绑定操作员
 func Binding(c tb.Context) error {
-	var count int64
-	//检查当前群组是否已经绑定过了
-	err := orm.Gdb.Model(&model.Admin{}).
-		Where("gid = ?", fmt.Sprint(c.Chat().ID)).Count(&count)
-	if err != nil {
-		log.Sugar.Errorf("check gid count error:%s", err.Error)
-	}
-
-	if count > 0 {
-		log.Sugar.Infof("用户:%s 试图重新往群:%s 绑定记录员", c.Sender().Username, c.Chat().Title)
-		return c.Delete()
-	}
-
 	//save to db
 	record := model.Admin{}
 	record.Gid = fmt.Sprintf("%d", c.Chat().ID)
-	record.Uid = fmt.Sprintf("%d", c.Sender().ID)
-	record.Currency = "USDT"
+	record.Uid = c.Sender().Username
 
 	err2 := orm.Gdb.Model(&record).Create(&record).Error
 	if err2 != nil {
@@ -57,23 +44,6 @@ func StartNote(c tb.Context) error {
 		return err
 	}
 
-	//查询所有的设置项
-	//1.查询余额
-	var balances []model.Balance
-	err = orm.Gdb.Model(&model.Balance{}).Find(&balances, "created >= date('now','start of day') and gid = ?", fmt.Sprintf("%d", c.Chat().ID)).Error
-
-	var balanceInAmount float64 = 0
-	var balanceOutAmount float64 = 0
-
-	for _, balance := range balances {
-		if balance.PayIn != 0 {
-			balanceInAmount += balance.PayIn
-		}
-		if balance.PayOut != 0 {
-			balanceOutAmount += balance.PayOut
-		}
-	}
-
 	//2.查询汇率
 	var rate model.Rate
 	err = orm.Gdb.Model(&model.Rate{}).Find(&rate, "created >= date('now','start of day') and gid = ?", fmt.Sprintf("%d", c.Chat().ID)).Error
@@ -84,6 +54,10 @@ func StartNote(c tb.Context) error {
 
 	//4.查询交易币种
 	currency := cache.GetCurrency(c)
+
+	if currency == "" {
+		currency = "USDT"
+	}
 
 	inRate := rate.InRate
 	outRate := rate.OutRate
@@ -96,9 +70,6 @@ func StartNote(c tb.Context) error {
 	strtmp := `
 	|交易币种| %s
 
-	|入款金额| %.2f
-	|出款金额| %.2f
-
 	|入款汇率| %.2f
 	|出款汇率| %.2f
 
@@ -107,9 +78,7 @@ func StartNote(c tb.Context) error {
 	`
 
 	res := fmt.Sprintf(symbal+strtmp+symbal,
-		currency,
-		balanceInAmount,
-		balanceOutAmount, inRate,
+		currency, inRate,
 		outRate, inFree, outFree,
 	)
 	//
@@ -118,15 +87,59 @@ func StartNote(c tb.Context) error {
 	return c.Send(txt, tb.ModeMarkdownV2)
 }
 
+func SetAdmin(c tb.Context) error {
+
+	err := CheckNoter(c)
+	if err != nil {
+		return err
+	}
+
+	text := c.Text()
+	split := strings.Split(text, "@")
+
+	username := split[1]
+
+	if len(split) != 2 {
+		return c.Reply("授权格式错误")
+	}
+
+	var count int64
+	//检查当前用户是否已经授权
+	err = orm.Gdb.Model(&model.Admin{}).Where("gid = ? and uid = ? ", fmt.Sprint(c.Chat().ID), username).Count(&count).Error
+	if err != nil {
+		log.Sugar.Errorf("check gid count error:%s", err.Error)
+	}
+
+	if count > 0 {
+		return c.Reply(fmt.Sprintf("授权对象:%s 已经被授权过了请勿重复授权"), username)
+	}
+
+	//save to db
+	record := model.Admin{}
+	record.Gid = fmt.Sprintf("%d", c.Chat().ID)
+	record.Uid = username
+
+	err2 := orm.Gdb.Model(&record).Create(&record).Error
+	if err2 != nil {
+		log.Sugar.Errorf("save recored error:%s", err2.Error())
+		return nil
+	}
+
+	//添加到内存
+	helper.AddNorer(record.Gid, record.Uid)
+
+	groupName := c.Chat().Title
+	return c.Reply(fmt.Sprintf("用户:【%s】 已经授权为:【%s】的记账操作员", record.Uid, groupName))
+
+}
+
 //TODO 修改完币种之后需要重新设置汇率
 func SetCurrency(c tb.Context) error {
 	reg := `[A-Z]+`
 	regex := regexp.MustCompile(reg)
 	currency := regex.FindString(c.Text())
 
-	fmt.Println(currency)
-
-	err2 := orm.Gdb.Model(model.Admin{}).Where("gid = ?", fmt.Sprintf("%d", c.Chat().ID)).Update("currency", currency).Error
+	err2 := orm.Gdb.Model(model.Currency{}).Where("gid = ?", fmt.Sprintf("%d", c.Chat().ID)).Update("currency", currency).Error
 	if err2 != nil {
 		log.Sugar.Errorf("update currency error:%s", err2.Error())
 		return nil
@@ -149,7 +162,7 @@ func SetInRate(c tb.Context) error {
 	var rate model.Rate
 
 	msg := c.Message().Text
-	regex := `[0-9]+.[0-9]+`
+	regex := `[0-9]+\.?[0-9]*`
 	mustCompile := regexp.MustCompile(regex)
 	rates := mustCompile.FindString(msg)
 
@@ -179,10 +192,7 @@ func SetInRate(c tb.Context) error {
 			log.Sugar.Errorf("查询当前群组今日入款汇率失败")
 		}
 
-	}
-
-	if rate.InRate == 0 {
-
+	} else {
 		floatRate, err := strconv.ParseFloat(rates, 32)
 		if err != nil {
 			return c.Reply("指令有误请重试")
@@ -190,18 +200,20 @@ func SetInRate(c tb.Context) error {
 
 		rate.InRate = float32(floatRate)
 
-		err = orm.Gdb.Model(&rate).Create(&rate).Error
+		err = orm.Gdb.Model(&rate).Updates(&rate).Error
 		if err != nil {
 			log.Sugar.Errorf("add in_rate to rates db have error:%s", err.Error())
 			return c.Reply("设置入款汇率失败")
 		}
 
-		return c.Reply(fmt.Sprintf("今日(%s)入款汇率设置为:%s", time.Now().Format("2006-01-02"), rates))
+		//更新缓存
+		today := time.Now().Format("2006-01-02") + "rate"
+		helper.NoterMap.Store(today, &rate)
 
+		return c.Reply(fmt.Sprintf("今日(%s)入款汇率设置为:%s", time.Now().Format("2006-01-02"), rates))
 	}
 
-	return c.Reply(fmt.Sprintf("⚠今日入款汇率已经设置为:%.2f", rate.InRate))
-
+	return nil
 }
 
 func SetOutRate(c tb.Context) error {
@@ -215,7 +227,7 @@ func SetOutRate(c tb.Context) error {
 	var rate model.Rate
 
 	msg := c.Message().Text
-	regex := `[0-9]+.[0-9]+`
+	regex := `[0-9]+\.?[0-9]*`
 	mustCompile := regexp.MustCompile(regex)
 	rates := mustCompile.FindString(msg)
 
@@ -244,10 +256,7 @@ func SetOutRate(c tb.Context) error {
 		} else {
 			log.Sugar.Errorf("查询当前群组今日出款汇率失败")
 		}
-	}
-
-	if rate.OutRate == 0 {
-
+	} else {
 		floatRate, err := strconv.ParseFloat(rates, 32)
 		if err != nil {
 			return c.Reply("指令有误请重试")
@@ -257,14 +266,16 @@ func SetOutRate(c tb.Context) error {
 
 		err = orm.Gdb.Model(&rate).Updates(&rate).Error
 		if err != nil {
-			log.Sugar.Errorf("add in_rate to rates db have error:%s", err.Error())
-			return c.Reply("设置入款汇率失败")
+			log.Sugar.Errorf("update out_rate to rates db have error:%s", err.Error())
+			return c.Reply("更新出款汇率失败")
 		}
-
+		//更新缓存
+		today := time.Now().Format("2006-01-02") + "rate"
+		helper.NoterMap.Store(today, &rate)
 		return c.Reply(fmt.Sprintf("今日(%s)出款汇率设置为:%s", time.Now().Format("2006-01-02"), rates))
 	}
 
-	return c.Reply(fmt.Sprintf("⚠今日出款汇率已经设置为:%.2f", rate.OutRate))
+	return nil
 }
 
 func SetInFree(c tb.Context) error {
@@ -278,7 +289,7 @@ func SetInFree(c tb.Context) error {
 	var free model.Free
 
 	msg := c.Message().Text
-	regex := `[0-9]+.[0-9]+`
+	regex := `[0-9]+\.?[0-9]*`
 	mustCompile := regexp.MustCompile(regex)
 	rates := mustCompile.FindString(msg)
 
@@ -308,10 +319,7 @@ func SetInFree(c tb.Context) error {
 			log.Sugar.Errorf("查询当前群组今日入款费率失败")
 		}
 
-	}
-
-	if free.InFree == 0 {
-
+	} else {
 		floatRate, err := strconv.ParseFloat(rates, 32)
 		if err != nil {
 			return c.Reply("指令有误请重试")
@@ -319,17 +327,20 @@ func SetInFree(c tb.Context) error {
 
 		free.InFree = float32(floatRate)
 
-		err = orm.Gdb.Model(&free).Create(&free).Error
+		err = orm.Gdb.Model(&free).Updates(&free).Error
 		if err != nil {
 			log.Sugar.Errorf("add in_free to rates db have error:%s", err.Error())
 			return c.Reply("设置入款费率失败")
 		}
 
-		return c.Reply(fmt.Sprintf("今日(%s)入款费率设置为:%s", time.Now().Format("2006-01-02"), rates))
+		//更新缓存
+		today := time.Now().Format("2006-01-02") + "free"
+		helper.NoterMap.Store(today, &free)
 
+		return c.Reply(fmt.Sprintf("今日(%s)入款费率设置为:%s", time.Now().Format("2006-01-02"), rates))
 	}
 
-	return c.Reply(fmt.Sprintf("⚠今日入款费率已经设置为:%.2f", free.InFree))
+	return nil
 
 }
 
@@ -344,7 +355,7 @@ func SetOutFree(c tb.Context) error {
 	var free model.Free
 
 	msg := c.Message().Text
-	regex := `[0-9]+.[0-9]+`
+	regex := `[0-9]+\.?[0-9]*`
 	mustCompile := regexp.MustCompile(regex)
 	rates := mustCompile.FindString(msg)
 
@@ -374,10 +385,7 @@ func SetOutFree(c tb.Context) error {
 			log.Sugar.Errorf("查询当前群组今日出款费率失败")
 		}
 
-	}
-
-	if free.OutFree == 0 {
-
+	} else {
 		floatRate, err := strconv.ParseFloat(rates, 32)
 		if err != nil {
 			return c.Reply("指令有误请重试")
@@ -385,81 +393,21 @@ func SetOutFree(c tb.Context) error {
 
 		free.OutFree = float32(floatRate)
 
-		err = orm.Gdb.Model(&free).Update("out_free", free.OutFree).Error
+		err = orm.Gdb.Model(&free).Updates(&free).Error
 		if err != nil {
 			log.Sugar.Errorf("add in_free to rates db have error:%s", err.Error())
 			return c.Reply("设置入款费率失败")
 		}
 
+		//更新缓存
+		today := time.Now().Format("2006-01-02") + "free"
+		helper.NoterMap.Store(today, &free)
+
 		return c.Reply(fmt.Sprintf("今日(%s)出款费率设置为:%s", time.Now().Format("2006-01-02"), rates))
-
 	}
 
-	return c.Reply(fmt.Sprintf("⚠今日入款费率已经设置为:%.2f", free.InFree))
+	return nil
 
-}
-
-// 设置入款
-func PayIn(c tb.Context) error {
-
-	err := CheckNoter(c)
-	if err != nil {
-		return err
-	}
-
-	num := helper.GetNumberFromString(c.Text())
-
-	payin := model.Balance{}
-	payin.Gid = fmt.Sprintf("%d", c.Chat().ID)
-	payin.PayIn = num
-	payin.PayOut = 0
-	payin.Created = time.Now()
-
-	err = orm.Gdb.Create(&payin).Error
-	if err != nil {
-		log.Sugar.Errorf("insert balance error:%s", err.Error())
-	}
-
-	return c.Reply("设置入款金额成功")
-}
-
-// 设置出款
-func PayOut(c tb.Context) error {
-	err := CheckNoter(c)
-	if err != nil {
-		return err
-	}
-
-	num := helper.GetNumberFromString(c.Text())
-
-	var dbBalance model.Balance
-	err = orm.Gdb.Model(&model.Balance{}).First(&dbBalance, "gid = ?", fmt.Sprintf("%d", c.Chat().ID)).Error
-	if err != nil {
-
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			//没有设置金额信息
-			return c.Reply("尚未设置入款信息,请先设置入款信息")
-		}
-
-		log.Sugar.Errorf("select  balce error:%s", err.Error())
-	}
-
-	//出款余额不足
-	if num > dbBalance.PayIn {
-		return c.Reply("出款余额不足")
-	}
-
-	//payOut := model.Balance{}
-	//payOut.Gid = fmt.Sprintf("%d", c.Chat().ID)
-	//payOut.PayOut = num
-	//payOut.Created = time.Now()
-
-	err = orm.Gdb.Model(model.Balance{}).Update("pay_out", num).Error
-	if err != nil {
-		log.Sugar.Errorf("update balance pay_out error:%s", err.Error())
-	}
-
-	return c.Reply(fmt.Sprintf("出款成功%.2f", num))
 }
 
 // 记账
@@ -575,8 +523,11 @@ func Record(c tb.Context, direction int8) error {
 `
 
 	txt := fmt.Sprintf(rspStr,
-		billInCount, billInStr,
-		billOutCount, billOutStr,
+		billInCount,
+		billInStr,
+
+		billOutCount,
+		billOutStr,
 
 		free.InFree, rate.InRate,
 		billInAmount,
@@ -589,4 +540,40 @@ func Record(c tb.Context, direction int8) error {
 
 	return c.Send(txt)
 
+}
+
+//清账
+func clean(c tb.Context) error {
+	//err := orm.Gdb.Model(&model.Bill{}).Delete("created >= date('now','start of day') and gid = ?", fmt.Sprintf("%d", c.Chat().ID)).Error
+	err := orm.Gdb.Model(&model.Bill{}).Where("created >= date('now','start of day') and gid = ?", fmt.Sprintf("%d", c.Chat().ID)).Delete(&model.Bill{}).Error
+	if err != nil {
+		log.Sugar.Errorf("get bills have error:%s", err.Error())
+	}
+
+	return c.Reply(fmt.Sprintf("今日(%s)清账完成", time.Now().Format("2006-01-02")))
+}
+
+//机器人帮助
+func Help(c tb.Context) error {
+
+	hrlpMsg := `
+1.如何设置汇率？
+设置入(出)款汇率xxx.xxxx【数字最大保留小数点后4位】
+2.如何设置费率？
+设置入(出)款费率xxx.xxxx【数字最大保留小数点后4位】
+3.如何查看设置项？
+记账【查看当前费率和汇率设置以及币种】
+4.如何设置币种？
+设置币种XXX【大写字母 例如CNY、USDT】
+5.如何记账？
+（1.）如果有账单号:xxxx+金额
+（2.）如果没有账单号:+金额
+（3.）其中+为代收 -为代付
+6.如何清账？
+清账
+7.如何授权
+授权请联系[@HsiangSun](https://t.me/HsiangSun)
+`
+
+	return c.Send(hrlpMsg)
 }
