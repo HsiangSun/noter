@@ -1,0 +1,12 @@
+[system]
+runtime_path="/runtime" # 缓存目录
+
+#日志配置
+[log]
+max_size=32
+max_age=7
+max_backups=3
+
+[boot]
+token=""
+
