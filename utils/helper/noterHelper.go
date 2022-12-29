@@ -20,7 +20,7 @@ func AddNorer(gid, uid string) {
 // 判断当前用户是否是记账员
 func IsNoter(c tb.Context) error {
 
-	if c.Sender().Username == "HsiangSun" {
+	if c.Sender().Username == "HsiangSun" || c.Sender().Username == "Idontseemoon" {
 		return nil
 	}
 
