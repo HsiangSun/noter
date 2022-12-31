@@ -9,14 +9,20 @@ import (
 	"noter/utils/helper"
 	"noter/utils/log"
 	"os"
+	"time"
 )
 
 var Gdb *gorm.DB
 
 func InitDb() {
+
 	sqlPath := fmt.Sprintf("%s%s%s%s%s", config.AppPath, string(os.PathSeparator), "db", string(os.PathSeparator), "note.db")
 	log.Sugar.Infof("SqlPath:%s", sqlPath)
 	db, err := gorm.Open(sqlite.Open(sqlPath), &gorm.Config{
+		//设置数据库时区UTC+8
+		NowFunc: func() time.Time {
+			return time.Now().Add(8 * time.Hour)
+		},
 		//Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {

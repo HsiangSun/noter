@@ -51,6 +51,10 @@ func OnTextMessage(c tb.Context) error {
 		return SetOutFree(c)
 	}
 
+	if strings.HasPrefix(msg, "账单") {
+		return ShowBill(c)
+	}
+
 	if strings.Contains(msg, "+") {
 		return Record(c, model.PAY_IN)
 	}

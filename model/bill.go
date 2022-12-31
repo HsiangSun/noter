@@ -5,6 +5,7 @@ import "time"
 var (
 	PAY_OUT int8 = 0
 	PAY_IN  int8 = 1
+	ALL     int8 = 2
 )
 
 type Bill struct {
